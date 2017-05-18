@@ -56,7 +56,7 @@ app.use(function(err, req, res, next) {
  * Create cookie if header contains event code
  */
 function validateEventKey(req, res, next) {
-  if (typeof req.cookies[config.get('cookieName')] === 'undefined') {
+  if (!authorizedGuest(req.cookies)) {
 
     // Set cookie if eventkey is valid
     const eventKey = req.headers.eventkey;
@@ -67,17 +67,24 @@ function validateEventKey(req, res, next) {
         httpOnly: false,
         secure: false
       });
-      res.send();
     } else {
-      res.status(404).send();
+      res.status(404);
     }
-  } else {
-    res.status(200).send(); // Cookie exists - send OK response
   }
+
+  res.send();
 }
 
 function rsvpGuest(req, res) {
+  if (authorizedGuest(req.cookies)) {
+    res.send('You can rsvp');
+  } else {
+    res.status(403).send('Get outta here');
+  }
+}
 
+function authorizedGuest(cookies) {
+  return cookies[config.get('cookieName')] === config.get('cookieValue');
 }
 
 module.exports = app;
