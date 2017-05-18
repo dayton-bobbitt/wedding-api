@@ -67,7 +67,7 @@ function validateEventKey(req, res, next) {
         httpOnly: false,
         secure: false
       });
-      res.send(); // Required to set cookie - send() function will not store cookie
+      res.send();
     } else {
       res.status(404).send();
     }
