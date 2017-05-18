@@ -6,11 +6,18 @@ const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const sassMiddleware = require('node-sass-middleware');
 const config = require('config');
+const cors = require('cors');
 
 const index = require('./routes/index');
 const users = require('./routes/users');
 
 const app = express();
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  allowedHeaders: ['eventkey']
+}
+app.use(cors(corsOptions));
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
