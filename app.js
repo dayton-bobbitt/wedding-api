@@ -75,18 +75,20 @@ function validateEventKey(req, res, next) {
         secure: false
       });
     } else {
-      res.status(404);
+      res.status(404).send();
     }
   }
 
-  res.send();
+  res.json({
+    details: config.get('details')
+  });
 }
 
 function rsvpGuest(req, res) {
   if (authorizedGuest(req.cookies)) {
-    res.send('You can rsvp');
+    res.status(200).send();
   } else {
-    res.status(403).send('Get outta here');
+    res.status(403).send();
   }
 }
 
