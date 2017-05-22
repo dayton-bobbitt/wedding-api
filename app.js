@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 const sassMiddleware = require('node-sass-middleware');
 const config = require('config');
 const cors = require('cors');
+const mysql = require('mysql');
 
 const index = require('./routes/index');
 const users = require('./routes/users');
@@ -39,7 +40,7 @@ app.use(sassMiddleware({
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/guest/validate', validateEventKey);
-app.use('/api/guest/rsvp', rsvpGuest);
+app.post('/api/guest/find/rsvp', findRsvp);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -80,20 +81,61 @@ function validateEventKey(req, res, next) {
   }
 
   res.json({
+    contactEmail: config.get('contactEmail'),
     details: config.get('details')
   });
 }
 
-function rsvpGuest(req, res) {
+function findRsvp(req, res) {
   if (authorizedGuest(req.cookies)) {
-    res.status(200).send();
+    const body = req.body;
+    queryForRsvp(body.lastName, body.address)
+    .then((guest) => {
+      if (guest) {
+        res.status(200).json(guest);
+      } else {
+        res.status(404).send();
+      }
+    })
+    .catch((err) => res.status(500).send(err));
   } else {
-    res.status(403).send();
+    res.status(401).send();
   }
 }
 
 function authorizedGuest(cookies) {
   return cookies[config.get('cookieName')] === config.get('cookieValue');
+}
+
+function queryForRsvp(lastName, address) {
+  return new Promise((resolve, reject) => {
+    const credentials = config.get('connection');
+    const con = mysql.createConnection({
+      host: credentials.host,
+      user: credentials.user,
+      password: credentials.password,
+      database: credentials.database
+    });
+
+    con.connect((err) => {
+      if (err) {
+        return reject(err);
+      }
+    });
+    
+    const queryTemplate = config.get('queryTemplate');
+    const inserts = [`%${lastName.trim()}%`, address];
+    query = mysql.format(queryTemplate, inserts);
+
+    con.query(query, function (err, results) {
+      if (err) {
+        return reject(err);
+      };
+      resolve(results[0]);
+    });
+
+    con.end();
+  });
 }
 
 module.exports = app;
