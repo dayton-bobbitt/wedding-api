@@ -8,6 +8,7 @@ const sassMiddleware = require('node-sass-middleware');
 const config = require('config');
 const cors = require('cors');
 const mysql = require('mysql');
+const md5 = require('blueimp-md5');
 
 const index = require('./routes/index');
 const users = require('./routes/users');
@@ -16,7 +17,7 @@ const app = express();
 const corsOptions = {
   origin: true,
   credentials: true,
-  allowedHeaders: ['eventkey']
+  allowedHeaders: ['eventkey', 'lastname', 'address']
 }
 app.use(cors(corsOptions));
 
@@ -40,7 +41,8 @@ app.use(sassMiddleware({
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/guest/validate', validateEventKey);
-app.post('/api/guest/find/rsvp', findRsvp);
+app.get('/api/guest/rsvp', findRsvp);
+app.post('/api/guest/rsvp', rsvpGuest);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -88,26 +90,67 @@ function validateEventKey(req, res, next) {
 
 function findRsvp(req, res) {
   if (authorizedGuest(req.cookies)) {
-    const body = req.body;
-    queryForRsvp(body.lastName, body.address)
-    .then((guest) => {
-      if (guest) {
-        res.status(200).json(guest);
-      } else {
-        res.status(404).send();
-      }
-    })
-    .catch((err) => res.status(500).send(err));
+    const { lastName, address } = getRsvpHeaders(req);
+
+    if (lastName && address) {
+      selectRsvp(lastName, address)
+      .then((guest) => {
+        if (guest) {
+          guest.id = md5(`${config.get('salt')}-${guest.id}`);
+          res.status(200).json(guest);
+        } else {
+          res.status(404).send();
+        }
+      }).catch((err) => res.status(500).send(err));
+    } else {
+      res.status(400).send();
+    }
   } else {
     res.status(401).send();
   }
+}
+
+function rsvpGuest(req, res) {
+  if (authorizedGuest(req.cookies)) {
+    const body = req.body;
+    if (typeof body.id !== 'undefined' && typeof body.attending !== 'undefined') {
+      updateRsvp(body.id, body.attending)
+      .then(() => res.send())
+      .catch((err) => res.status(500).send(err));
+    } else {
+      res.status(400).send();
+    }
+  } else {
+    res.status(401).send();
+  }
+}
+
+function getRsvpHeaders(request) {
+  return {
+    lastName: request.headers.lastname,
+    address: request.headers.address
+  };
 }
 
 function authorizedGuest(cookies) {
   return cookies[config.get('cookieName')] === config.get('cookieValue');
 }
 
-function queryForRsvp(lastName, address) {
+function selectRsvp(lastName, address) {
+  const selectQueryTemplate = config.get('selectQueryTemplate');
+  const inserts = [`%${lastName.trim()}%`, address];
+  query = mysql.format(selectQueryTemplate, inserts);
+  return queryDatabase(query);
+}
+
+function updateRsvp(id, attending) {
+  const updateQueryTemplate = config.get('updateQueryTemplate');
+  const inserts = [attending, id];
+  query = mysql.format(updateQueryTemplate, inserts);
+  return queryDatabase(query);
+}
+
+function queryDatabase(query) {
   return new Promise((resolve, reject) => {
     const credentials = config.get('connection');
     const con = mysql.createConnection({
@@ -122,10 +165,6 @@ function queryForRsvp(lastName, address) {
         return reject(err);
       }
     });
-    
-    const queryTemplate = config.get('queryTemplate');
-    const inserts = [`%${lastName.trim()}%`, address];
-    query = mysql.format(queryTemplate, inserts);
 
     con.query(query, function (err, results) {
       if (err) {
