@@ -112,11 +112,25 @@ function findRsvp(req, res) {
 
 function rsvpGuest(req, res) {
   if (authorizedGuest(req.cookies)) {
-    const body = req.body;
-    if (typeof body.id !== 'undefined' && typeof body.attending !== 'undefined') {
-      updateRsvp(body.id, body.attending)
-      .then(() => res.send())
-      .catch((err) => res.status(500).send(err));
+    const id = req.body.id;
+    const numAttending = req.body.numAttending;
+    const declined = req.body.declined;
+
+    if (typeof id !== 'undefined' && typeof numAttending !== 'undefined') {
+      selectRsvpById(id)
+      .then((guest) => {
+        if (guest && numAttending >= 0 && numAttending <= guest.maxAttending) {
+          updateRsvp(id, numAttending, declined)
+          .then(() => {
+            guest.numAttending = (declined) ? 0 : numAttending;;
+            guest.isAttending = (declined) ? false : true;
+            return res.json(guest);
+          })
+          .catch(err => res.status(500).send(err));
+        } else {
+          res.status(403).send();
+        }
+      }).catch(err => res.status(500).send(err));
     } else {
       res.status(400).send();
     }
@@ -143,9 +157,18 @@ function selectRsvp(lastName, address) {
   return queryDatabase(query);
 }
 
-function updateRsvp(id, attending) {
+function selectRsvpById(id) {
+  const selectWithIdQueryTemplate = config.get('selectWithIdQueryTemplate');
+  const inserts = [id];
+  query = mysql.format(selectWithIdQueryTemplate, inserts);
+  return queryDatabase(query);
+}
+
+function updateRsvp(id, attending, declined) {
+  const isAttending = (declined) ? false : true;
+  const numAttending = (declined) ? 0 : attending;
   const updateQueryTemplate = config.get('updateQueryTemplate');
-  const inserts = [attending, id];
+  const inserts = [numAttending, isAttending, id];
   query = mysql.format(updateQueryTemplate, inserts);
   return queryDatabase(query);
 }
