@@ -17,7 +17,7 @@ const app = express();
 const corsOptions = {
   origin: true,
   credentials: true,
-  allowedHeaders: ['eventkey', 'lastname', 'address']
+  allowedHeaders: ['content-type', 'eventkey', 'lastname', 'address']
 }
 app.use(cors(corsOptions));
 
@@ -94,7 +94,14 @@ function isGuestRsvp(req, res) {
     const rsvpId = req.cookies[config.get('rsvpCookieName')];
     if (rsvpId) {
       selectRsvpById(rsvpId)
-      .then(guest => res.status(200).json(guest))
+      .then((guest) => {
+        if (guest) {
+          guest.id = rsvpId;
+          res.status(200).json(guest);
+        } else {
+          res.status(404).send();
+        }
+      })
       .catch(err => res.status(500).send(err));
     } else {
       return res.status(404).send();
