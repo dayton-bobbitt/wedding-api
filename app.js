@@ -8,12 +8,14 @@ const sassMiddleware = require('node-sass-middleware');
 const config = require('config');
 const cors = require('cors');
 const mysql = require('mysql');
+const helmet = require('helmet');
 const md5 = require('blueimp-md5');
 
 const index = require('./routes/index');
 const users = require('./routes/users');
 
 const app = express();
+app.use(helmet());
 const corsOptions = {
   origin: true,
   credentials: true,
