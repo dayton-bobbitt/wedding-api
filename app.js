@@ -41,6 +41,7 @@ app.use(sassMiddleware({
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/guest/validate', validateEventKey);
+app.get('/api/guest/check/rsvp', isGuestRsvp);
 app.get('/api/guest/rsvp', findRsvp);
 app.post('/api/guest/rsvp', rsvpGuest);
 
@@ -88,6 +89,21 @@ function validateEventKey(req, res, next) {
   });
 }
 
+function isGuestRsvp(req, res) {
+  if (authorizedGuest(req.cookies)) {
+    const rsvpId = req.cookies[config.get('rsvpCookieName')];
+    if (rsvpId) {
+      selectRsvpById(rsvpId)
+      .then(guest => res.status(200).json(guest))
+      .catch(err => res.status(500).send(err));
+    } else {
+      return res.status(404).send();
+    }
+  } else {
+    return res.status(401).send();
+  }
+}
+
 function findRsvp(req, res) {
   if (authorizedGuest(req.cookies)) {
     const { lastName, address } = getRsvpHeaders(req);
@@ -101,7 +117,7 @@ function findRsvp(req, res) {
         } else {
           res.status(404).send();
         }
-      }).catch((err) => res.status(500).send(err));
+      }).catch(err => res.status(500).send(err));
     } else {
       res.status(400).send();
     }
@@ -122,6 +138,13 @@ function rsvpGuest(req, res) {
         if (guest && numAttending >= 0 && numAttending <= guest.maxAttending) {
           updateRsvp(id, numAttending, declined)
           .then(() => {
+            res.cookie(config.get('rsvpCookieName'), id, {
+              path: '/api', 
+              expires: config.get('weddingDate'),
+              httpOnly: false,
+              secure: false
+            });
+
             guest.numAttending = (declined) ? 0 : numAttending;;
             guest.isAttending = (declined) ? false : true;
             return res.json(guest);
